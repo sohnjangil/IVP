@@ -1,0 +1,169 @@
+#!/bin/bash
+
+echo
+echo "IVP --- Iverative VecScreen Pipeline"
+echo
+echo "This pipeline is for removing vector contaminations in draft genome using VecScreen."
+echo
+echo "Usage: ivp.sh <draft_genome.fa(sta)> <Vector_file>"
+echo
+echo "draft_genome:\ta .fasta file to be updated by removing vector contamination"
+echo "Vector_file\ta .fasta file containing vector sequences"
+echo
+echo "Jang-il Sohn"
+echo "Bioinformatic and Genetics Lab."
+echo "Life Scienc, Hanyang University"
+echo "Seoul, Korea"
+echo
+echo "e-mail: sohnjangil@gmail.com"
+echo
+echo "<< Program start >>"
+
+echo;date;echo
+
+
+working_dir=workding_dir
+[ -d $working_dir ] && rm -rf $working_dir
+mkdir $working_dir
+cd $working_dir
+
+INPUT=${1}
+contig=contig_before.fasta
+DB=${2}
+
+ln -s ../${INPUT}
+ln -s ../${DB}
+
+log_dir=logs
+mkdir $log_dir
+
+mapping_result_dir=mapping_result
+mkdir $mapping_result_dir
+
+mkdir tmp
+tmp=tmp/tmp
+
+vector_removed_contig=contig_vector_removed.fasta
+vecscreen_outfile=VecScreen.result
+outfile=ivp_result.fasta
+vector_removed_list=vector_removed_list
+
+echo "Making BLAST_DB"
+makeblastdb -in ${DB} -dbtype nucl -out ${DB}.db > $log_dir/makeblastdb.log 2> $log_dir/makeblastdb.err
+echo
+echo "Extracting contigs"
+ivp_scaffold_to_contig ${INPUT} ${contig}
+echo;date;echo
+
+
+input=input
+output=output
+ln -s $contig ${output}.0.extract
+
+LN=10
+for (( i = 1 ; LN > 0 ; i ++ ))
+do
+    echo
+    echo
+    echo "##########################################"
+    echo "#"
+    echo "#  iteration $i "
+    echo "#"
+    echo "##########################################"
+    echo 
+
+    j=$(($i - 1))
+    
+    [ -f $input ] && rm $input
+    ln -s ${output}.${j}.extract $input
+
+    echo "Extracting contigs from ${iput}"
+    #echo
+    ivp_scaffold_to_contig ${input} ${tmp}.$i
+
+    echo "Running VecScreen"
+    #echo ==\> vecscreen -db ${DB}.db -query ${tmp}.$i -out $mapping_result_dir/${vecscreen_outfile}.${i} -outfmt 0 -text_output 1\> $log_dir/vecscreen.log 2\> $log_dir/vecscreen.err
+    vecscreen -db ${DB}.db -query ${tmp}.$i -out $mapping_result_dir/${vecscreen_outfile}.${i} -outfmt 0 -text_output > $log_dir/vecscreen.log 2> $log_dir/vecscreen.err
+
+    echo "Removing vector contaminations"
+    #echo
+    ivp_remove_vector ${tmp}.$i $mapping_result_dir/${vecscreen_outfile}.$i > $log_dir/ivp_remove_vector.iteration$i.log
+
+    ivp_remove_list_convertor $log_dir/ivp_remove_vector.iteration$i.log ${tmp}.$i.cont2scaf.map
+    
+    mv $vector_removed_list.txt $vector_removed_list.${i}.txt
+    
+    cp ${tmp}.$i.cont2scaf.map ${tmp}.$i.VecScreen.cont2scaf.map
+    
+    ivp_convert_contaminated_list ${tmp}.$i.contaminated.list ${tmp}.$i.VecScreen.cont2scaf.map ${output}.${i}.contaminated.list
+
+    echo "Reconstructing contigs"
+    #echo
+    ivp_contig_to_scaffold ${tmp}.$i.VecScreen ${output}.${i} > $log_dir/ivp_contig_to_scaffold.${i}.log
+
+    echo "Extracting vector removed contigs"
+    #echo
+    ivp_fasta_extract ${output}.${i} ${output}.${i}.contaminated.list
+
+    LN=$(cat ${tmp}.$i.contaminated.list | wc -l)
+    echo "Number of contaminations = $LN"
+    echo;date;echo;echo
+
+done
+
+
+echo
+echo
+echo "##########################################"
+echo "#"
+echo "#  End of iteration"
+echo "#"
+echo "##########################################"
+echo
+
+
+echo "Collecting vector removed contigs"
+#echo
+cat ${output}.*.leave > $vector_removed_contig
+
+ln -s contig_before.fasta.cont2scaf.map $vector_removed_contig.cont2scaf.map
+
+echo "Reconstructing scaffolds"
+echo
+ivp_contig_to_scaffold $vector_removed_contig ../${outfile} > $log_dir/ivp_contig_to_scaffold.log
+
+cat $vector_removed_list.*.txt > $vector_removed_list.contig.txt
+
+ivp_remove_list_convertor $vector_removed_list.contig.txt $vector_removed_contig.cont2scaf.map
+
+mv $vector_removed_list.txt ../ivp_removed_regions.info
+
+
+echo
+echo "Program finished"
+echo;date;echo
+
+
+echo
+echo
+echo
+echo "##########################################"
+echo
+echo "<< Input files >>"
+echo ${INPUT}
+echo ${DB}
+echo
+echo
+echo "<< Directories >>"
+echo Intermdiate files:        $working_dir
+echo Log files:                $working_dir/$log_dir
+echo VecScreen mapping result: $working_dir/$mapping_result_dir
+echo
+echo
+echo "<< Output files >>"
+echo
+echo ${outfile}
+echo ivp_removed_regions.info
+echo
+echo "<< Number of contaminated bases >>"
+awk '{sum+= $4 - $3 }END{print sum}' ivp_removed_regions.info
