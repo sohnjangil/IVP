@@ -1,11 +1,9 @@
-CC=g++
+CC=gcc
 
-FLAGS=-Wall -g -std=c++11
+FLAGS=-lstdc++ -Wall -g -std=c++11
 BIN_DIR=../bin
 
-all: install
-
-install: contig_to_scaffold scaffold_to_contig remove_vector remove_list_convertor convert_contaminated_list fasta_extract
+all: contig_to_scaffold scaffold_to_contig remove_vector remove_list_convertor convert_contaminated_list fasta_extract
 
 contig_to_scaffold: contig_to_scaffold.cpp
 	${CC} ${FLAGS} contig_to_scaffold.cpp -o ${BIN_DIR}/ivp_contig_to_scaffold
