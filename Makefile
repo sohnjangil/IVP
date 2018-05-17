@@ -1,7 +1,8 @@
 all: install
 
 install: 
-	chmod a+x IVP; cd src; make all; cd ../bin; ln -sf ../IVP
+	if [ ! -d bin ] ; then mkdir bin ; fi
+	cd src; chmod a+x IVP; make all; cd ../bin; ln -sf ../src/IVP
 
 clean:
-	rm bin/*
+	rm -rf bin
