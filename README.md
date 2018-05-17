@@ -3,10 +3,6 @@
 Iterative Vecscreen Pipeline
 
 
-NOTE
-----
-
-The species of reference genome must be same or at least very closely related one.
 
 Requirement
 -----------
